@@ -4212,15 +4212,157 @@ def _ensure_tables_exist():
             except Exception:
                 pass
 
-if __name__ == '__main__':
-    from datetime import datetime, timedelta
+# if __name__ == '__main__':
+#     from datetime import datetime, timedelta
     
+#     with app.app_context():
+#         _ensure_tables_exist()
+        
+#         cur = mysql.connection.cursor(DictCursor)
+        
+#         # Always ensure companies exist
+#         cur.execute("SELECT COUNT(*) as count FROM companies")
+#         if cur.fetchone()['count'] == 0:
+#             cur.execute("""
+#                 INSERT INTO companies (name, description) VALUES 
+#                 ('Ikio', 'Renewable Energy Solutions'),
+#                 ('Metco', 'Industrial Energy Management'),
+#                 ('Sunsprint', 'Solar Power Systems')
+#             """)
+#             mysql.connection.commit()
+#             print("Companies created successfully")
+        
+#         # Check if users exist
+#         cur.execute("SELECT COUNT(*) as count FROM users")
+#         if cur.fetchone()['count'] == 0:
+#             # Create admin user
+#             cur.execute("""
+#                 INSERT INTO users (email, password, is_admin, role) VALUES 
+#                 ('admin@example.com', 'admin', 1, 'admin')
+#             """)
+#             admin_user_id = cur.lastrowid
+            
+#             # Create other users
+#             cur.execute("""
+#                 INSERT INTO users (email, password, is_admin, role) VALUES 
+#                 ('bd@example.com', 'user', 0, 'business dev'),
+#                 ('designer@example.com', 'designer', 0, 'design'),
+#                 ('ops@example.com', 'ops', 0, 'operations'),
+#                 ('sitemgr@example.com', 'site', 0, 'site manager')
+#             """)
+#             # Fetch exact user IDs by email to avoid relying on lastrowid math
+#             cur.execute("SELECT id FROM users WHERE email=%s", ('bd@example.com',))
+#             user_bdm_id = cur.fetchone()['id']
+#             cur.execute("SELECT id FROM users WHERE email=%s", ('designer@example.com',))
+#             user_design_id = cur.fetchone()['id']
+#             cur.execute("SELECT id FROM users WHERE email=%s", ('ops@example.com',))
+#             user_ops_id = cur.fetchone()['id']
+#             cur.execute("SELECT id FROM users WHERE email=%s", ('sitemgr@example.com',))
+#             user_site_id = cur.fetchone()['id']
+            
+#             # Get company ids for linking bids
+#             cur.execute("SELECT id FROM companies WHERE name='Ikio'")
+#             ikio_id = cur.fetchone()['id']
+#             cur.execute("SELECT id FROM companies WHERE name='Metco'")
+#             metco_id = cur.fetchone()['id']
+#             cur.execute("SELECT id FROM companies WHERE name='Sunsprint'")
+#             sunsprint_id = cur.fetchone()['id']
+
+#             # Create sample bids linked to companies
+#             cur.execute("""
+#             INSERT INTO bids (name, current_stage, user_id, company_id) VALUES 
+#             ('Project Alpha', 'business', %s, %s),
+#             ('Project Beta', 'design', %s, %s),
+#             ('Project Gamma', 'operations', %s, %s)
+#         """, (user_bdm_id, ikio_id, user_design_id, metco_id, user_ops_id, sunsprint_id))
+#             # Create sample bid_incoming data
+#             cur.execute("""
+#                 INSERT INTO bid_incoming (b_name, due_date, state, scope, type, scoring, comp_name, decision, summary) VALUES 
+#                 ('Solar Energy Project', %s, 'submitted', 'Installation of 500kW solar panels for commercial building', 'Renewable Energy', 85, 'Ikio', 'GO', 'High potential project with good ROI'),
+#                 ('Wind Farm Development', %s, 'under_review', 'Development of 2MW wind farm in rural area', 'Wind Energy', 72, 'Metco', 'NO-GO', 'Land acquisition issues identified'),
+#                 ('Energy Efficiency Audit', %s, 'pending', 'Comprehensive energy audit for manufacturing facility', 'Energy Management', 90, 'Sunsprint', 'WON', 'Excellent technical proposal with competitive pricing'),
+#                 ('Battery Storage System', %s, 'submitted', 'Installation of 1MWh battery storage system', 'Energy Storage', 78, 'Ikio', 'LOST', 'Lost to competitor with lower bid'),
+#                 ('Smart Grid Implementation', %s, 'completed', 'Implementation of smart grid technology for city', 'Smart Grid', 95, 'Metco', 'WON', 'Successfully completed project ahead of schedule')
+#             """, (
+#                 datetime.now() + timedelta(days=30),
+#                 datetime.now() + timedelta(days=45),
+#                 datetime.now() + timedelta(days=15),
+#                 datetime.now() + timedelta(days=60),
+#                 datetime.now() + timedelta(days=90)
+#             ))
+            
+#             # One sample bid ready for site manager handover
+#             cur.execute("UPDATE bids SET current_stage='site_manager' WHERE name='Project Beta'")
+            
+#             mysql.connection.commit()
+            
+#             # Company ids already loaded above
+            
+#             # Create sample projects
+#             cur.execute("""
+#                 INSERT INTO projects (name, company_id, start_date, due_date, revenue, status, progress) VALUES 
+#                 ('Solar Farm Installation', %s, %s, %s, 50000, 'active', 45),
+#                 ('Wind Energy Project', %s, %s, %s, 75000, 'active', 70),
+#                 ('Energy Efficiency Audit', %s, %s, %s, 25000, 'active', 30),
+#                 ('Industrial Solar Setup', %s, %s, %s, 100000, 'active', 15),
+#                 ('Residential Solar Panel', %s, %s, %s, 30000, 'active', 80),
+#                 ('Commercial Solar System', %s, %s, %s, 60000, 'active', 25)
+#             """, (
+#                 ikio_id, datetime.now(), datetime.now() + timedelta(days=90),
+#                 ikio_id, datetime.now() - timedelta(days=30), datetime.now() + timedelta(days=60),
+#                 metco_id, datetime.now() - timedelta(days=15), datetime.now() + timedelta(days=45),
+#                 metco_id, datetime.now(), datetime.now() + timedelta(days=120),
+#                 sunsprint_id, datetime.now() - timedelta(days=10), datetime.now() + timedelta(days=30),
+#                 sunsprint_id, datetime.now(), datetime.now() + timedelta(days=75)
+#             ))
+            
+#             # Get project IDs for tasks
+#             cur.execute("SELECT id FROM projects ORDER BY id")
+#             project_ids = [row['id'] for row in cur.fetchall()]
+            
+#             # Create sample tasks
+#             cur.execute("""
+#                 INSERT INTO tasks (name, project_id, assigned_user_id, due_date, status, priority) VALUES 
+#                 ('Site Survey', %s, %s, %s, 'in_progress', 'high'),
+#                 ('Equipment Procurement', %s, %s, %s, 'pending', 'medium'),
+#                 ('Installation Planning', %s, %s, %s, 'completed', 'high'),
+#                 ('Energy Assessment', %s, %s, %s, 'in_progress', 'urgent'),
+#                 ('Client Consultation', %s, %s, %s, 'pending', 'high'),
+#                 ('System Testing', %s, %s, %s, 'in_progress', 'medium'),
+#                 ('Documentation', %s, %s, %s, 'pending', 'low')
+#             """, (
+#                 project_ids[0], user_bdm_id, datetime.now() + timedelta(days=5),
+#                 project_ids[0], user_design_id, datetime.now() + timedelta(days=15),
+#                 project_ids[1], admin_user_id, datetime.now() + timedelta(days=10),
+#                 project_ids[2], user_ops_id, datetime.now() + timedelta(days=7),
+#                 project_ids[3], user_site_id, datetime.now() + timedelta(days=3),
+#                 project_ids[4], admin_user_id, datetime.now() + timedelta(days=2),
+#                 project_ids[5], user_bdm_id, datetime.now() + timedelta(days=20)
+#             ))
+            
+#             mysql.connection.commit()
+            
+#         # Seed at least one log if none exist
+#         cur.execute("SELECT COUNT(*) as count FROM logs")
+#         if cur.fetchone()['count'] == 0:
+#             cur.execute("INSERT INTO logs (action) VALUES ('System initialized and sample data seeded.')")
+#             mysql.connection.commit()
+        
+#         cur.close()
+    
+#     socketio.run(app, debug=True, port=5001)
+    
+    
+if __name__ == '__main__':
+    import os
+    from datetime import datetime, timedelta
+
     with app.app_context():
         _ensure_tables_exist()
         
         cur = mysql.connection.cursor(DictCursor)
-        
-        # Always ensure companies exist
+
+        # Ensure companies exist
         cur.execute("SELECT COUNT(*) as count FROM companies")
         if cur.fetchone()['count'] == 0:
             cur.execute("""
@@ -4241,7 +4383,7 @@ if __name__ == '__main__':
                 ('admin@example.com', 'admin', 1, 'admin')
             """)
             admin_user_id = cur.lastrowid
-            
+
             # Create other users
             cur.execute("""
                 INSERT INTO users (email, password, is_admin, role) VALUES 
@@ -4250,32 +4392,31 @@ if __name__ == '__main__':
                 ('ops@example.com', 'ops', 0, 'operations'),
                 ('sitemgr@example.com', 'site', 0, 'site manager')
             """)
-            # Fetch exact user IDs by email to avoid relying on lastrowid math
-            cur.execute("SELECT id FROM users WHERE email=%s", ('bd@example.com',))
-            user_bdm_id = cur.fetchone()['id']
-            cur.execute("SELECT id FROM users WHERE email=%s", ('designer@example.com',))
-            user_design_id = cur.fetchone()['id']
-            cur.execute("SELECT id FROM users WHERE email=%s", ('ops@example.com',))
-            user_ops_id = cur.fetchone()['id']
-            cur.execute("SELECT id FROM users WHERE email=%s", ('sitemgr@example.com',))
-            user_site_id = cur.fetchone()['id']
-            
-            # Get company ids for linking bids
-            cur.execute("SELECT id FROM companies WHERE name='Ikio'")
-            ikio_id = cur.fetchone()['id']
-            cur.execute("SELECT id FROM companies WHERE name='Metco'")
-            metco_id = cur.fetchone()['id']
-            cur.execute("SELECT id FROM companies WHERE name='Sunsprint'")
-            sunsprint_id = cur.fetchone()['id']
 
-            # Create sample bids linked to companies
+            # Fetch exact user IDs
+            user_emails = ['bd@example.com', 'designer@example.com', 'ops@example.com', 'sitemgr@example.com']
+            user_ids = {}
+            for email in user_emails:
+                cur.execute("SELECT id FROM users WHERE email=%s", (email,))
+                user_ids[email] = cur.fetchone()['id']
+
+            # Company ids
+            cur.execute("SELECT id, name FROM companies")
+            companies = {row['name']: row['id'] for row in cur.fetchall()}
+
+            # Sample bids
             cur.execute("""
-            INSERT INTO bids (name, current_stage, user_id, company_id) VALUES 
-            ('Project Alpha', 'business', %s, %s),
-            ('Project Beta', 'design', %s, %s),
-            ('Project Gamma', 'operations', %s, %s)
-        """, (user_bdm_id, ikio_id, user_design_id, metco_id, user_ops_id, sunsprint_id))
-            # Create sample bid_incoming data
+                INSERT INTO bids (name, current_stage, user_id, company_id) VALUES 
+                ('Project Alpha', 'business', %s, %s),
+                ('Project Beta', 'design', %s, %s),
+                ('Project Gamma', 'operations', %s, %s)
+            """, (
+                user_ids['bd@example.com'], companies['Ikio'],
+                user_ids['designer@example.com'], companies['Metco'],
+                user_ids['ops@example.com'], companies['Sunsprint']
+            ))
+
+            # Sample bid_incoming data
             cur.execute("""
                 INSERT INTO bid_incoming (b_name, due_date, state, scope, type, scoring, comp_name, decision, summary) VALUES 
                 ('Solar Energy Project', %s, 'submitted', 'Installation of 500kW solar panels for commercial building', 'Renewable Energy', 85, 'Ikio', 'GO', 'High potential project with good ROI'),
@@ -4290,15 +4431,12 @@ if __name__ == '__main__':
                 datetime.now() + timedelta(days=60),
                 datetime.now() + timedelta(days=90)
             ))
-            
-            # One sample bid ready for site manager handover
+
+            # Update sample bid
             cur.execute("UPDATE bids SET current_stage='site_manager' WHERE name='Project Beta'")
-            
             mysql.connection.commit()
-            
-            # Company ids already loaded above
-            
-            # Create sample projects
+
+            # Projects
             cur.execute("""
                 INSERT INTO projects (name, company_id, start_date, due_date, revenue, status, progress) VALUES 
                 ('Solar Farm Installation', %s, %s, %s, 50000, 'active', 45),
@@ -4308,19 +4446,18 @@ if __name__ == '__main__':
                 ('Residential Solar Panel', %s, %s, %s, 30000, 'active', 80),
                 ('Commercial Solar System', %s, %s, %s, 60000, 'active', 25)
             """, (
-                ikio_id, datetime.now(), datetime.now() + timedelta(days=90),
-                ikio_id, datetime.now() - timedelta(days=30), datetime.now() + timedelta(days=60),
-                metco_id, datetime.now() - timedelta(days=15), datetime.now() + timedelta(days=45),
-                metco_id, datetime.now(), datetime.now() + timedelta(days=120),
-                sunsprint_id, datetime.now() - timedelta(days=10), datetime.now() + timedelta(days=30),
-                sunsprint_id, datetime.now(), datetime.now() + timedelta(days=75)
+                companies['Ikio'], datetime.now(), datetime.now() + timedelta(days=90),
+                companies['Ikio'], datetime.now() - timedelta(days=30), datetime.now() + timedelta(days=60),
+                companies['Metco'], datetime.now() - timedelta(days=15), datetime.now() + timedelta(days=45),
+                companies['Metco'], datetime.now(), datetime.now() + timedelta(days=120),
+                companies['Sunsprint'], datetime.now() - timedelta(days=10), datetime.now() + timedelta(days=30),
+                companies['Sunsprint'], datetime.now(), datetime.now() + timedelta(days=75)
             ))
-            
-            # Get project IDs for tasks
+
+            # Tasks
             cur.execute("SELECT id FROM projects ORDER BY id")
             project_ids = [row['id'] for row in cur.fetchall()]
-            
-            # Create sample tasks
+
             cur.execute("""
                 INSERT INTO tasks (name, project_id, assigned_user_id, due_date, status, priority) VALUES 
                 ('Site Survey', %s, %s, %s, 'in_progress', 'high'),
@@ -4331,23 +4468,24 @@ if __name__ == '__main__':
                 ('System Testing', %s, %s, %s, 'in_progress', 'medium'),
                 ('Documentation', %s, %s, %s, 'pending', 'low')
             """, (
-                project_ids[0], user_bdm_id, datetime.now() + timedelta(days=5),
-                project_ids[0], user_design_id, datetime.now() + timedelta(days=15),
+                project_ids[0], user_ids['bd@example.com'], datetime.now() + timedelta(days=5),
+                project_ids[0], user_ids['designer@example.com'], datetime.now() + timedelta(days=15),
                 project_ids[1], admin_user_id, datetime.now() + timedelta(days=10),
-                project_ids[2], user_ops_id, datetime.now() + timedelta(days=7),
-                project_ids[3], user_site_id, datetime.now() + timedelta(days=3),
+                project_ids[2], user_ids['ops@example.com'], datetime.now() + timedelta(days=7),
+                project_ids[3], user_ids['sitemgr@example.com'], datetime.now() + timedelta(days=3),
                 project_ids[4], admin_user_id, datetime.now() + timedelta(days=2),
-                project_ids[5], user_bdm_id, datetime.now() + timedelta(days=20)
+                project_ids[5], user_ids['bd@example.com'], datetime.now() + timedelta(days=20)
             ))
-            
             mysql.connection.commit()
-            
-        # Seed at least one log if none exist
+
+        # Ensure logs exist
         cur.execute("SELECT COUNT(*) as count FROM logs")
         if cur.fetchone()['count'] == 0:
             cur.execute("INSERT INTO logs (action) VALUES ('System initialized and sample data seeded.')")
             mysql.connection.commit()
-        
+
         cur.close()
-    
-    socketio.run(app, debug=True, port=5001)
+
+    # ✅ Bind to Render's dynamic PORT
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port)
