@@ -7,3 +7,15 @@ eventlet
 pandas
 openpyxl
 xlsxwriter
+streamlit
+pandas
+torch
+python-doctr[torch]
+python-dotenv
+python-docx
+PyMuPDF
+requests
+tiktoken
+openai>=1.30.0
+langgraph>=0.2.0
+numpy>=1.26.0
