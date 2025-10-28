@@ -1,0 +1,41 @@
+Sunsprint Engineering (EPC Division)
+Summary of work and its flow
+As an EPC (Engineering, Procurement, and Construction) company, Sunsprint Engineering
+provides end-to-end services to deliver complex projects. The team manages everything from
+the initial designandengineering, through.materialandequipmentprocurement,to.on-site
+constructionandfinal.commissioning.
+1. EPC Head/Lead
+He/She has strategic and P&L (Profit & Loss) responsibility for the entire portfolio of projects.
+He/She approves final bids, allocates major resources, and provides executive-level decisions
+to resolve critical project issues.
+2. EPC Manager
+The EPC Manager has complete responsibility from project designing to execution, ensuring
+adherence to safety, schedule, budget, and quality specifications. He/She directs all
+construction activities and is the primary contact for the client post-award.
+3. Bid Engineer
+He/She manages the bid preparation process by compiling all technical, financial, and
+commercial components into a compliant proposal. He/she ensures all inputs are integrated
+correctly for a competitive submission.
+4. Design Engineer
+He/She creates all technical drawings, from preliminary layouts for bidding to final "Issued for
+Construction" (IFC) plans. He/she provides the Bill of Materials (BOM) for costing and gives
+technical support during construction.
+5. Business Development Executive
+He/She identifies and qualifies new project opportunities and client relationships. He/she then
+transfers the requirements of a qualified lead to the bid team to initiate the proposal process.
+6. Construction Estimator
+The Construction Estimator develops the detailed project cost estimate, covering all material,
+labor, and equipment expenses based on the design drawings. This budget is the financial
+foundation for the bid.
+7. Procurement Executive
+This executive manages the end-to-end procurement cycle for all project materials and
+equipment, including supplier negotiation and logistics. He/She provides cost data for the bid
+and manages deliveries during construction.
+8. Project Coordinator
+The Project Coordinator manages all project documentation, controls communication flow,
+and handles administrative tasks during the execution phase. He/She provides direct support
+to the EPC Manager.
+9. Energy Analyst
+The Energy Analyst performs technical assessments to forecast the project's energy generation
+and performance metrics. His/her report provides the core performance data that the design
+and bid are based on.

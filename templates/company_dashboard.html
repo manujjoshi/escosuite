@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ company.name }} Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        .pulse-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+        }
+        
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+        .timeline-checkpoint { transition: transform 0.2s ease-in-out; z-index: 10; }
+        .timeline-checkpoint:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        {% include 'sidebar.html' %}
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">{{ company.name }} Dashboard</h2>
+                <p class="text-gray-600">Company-specific projects and timeline tracking</p>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Active Projects</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ company_metrics.active_projects }}</p>
+                    </div>
+                    <i class="fas fa-project-diagram text-4xl text-blue-500"></i>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Tasks</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ company_metrics.total_tasks }}</p>
+                    </div>
+                    <i class="fas fa-tasks text-4xl text-green-500"></i>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Completed Projects</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ company_metrics.completed_projects }}</p>
+                    </div>
+                    <i class="fas fa-check-circle text-4xl text-yellow-500"></i>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Avg Progress</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ company_metrics.avg_progress_pct }}%</p>
+                    </div>
+                    <i class="fas fa-chart-pie text-4xl text-purple-500"></i>
+                </div>
+            </div>
+
+            <!-- BID Timeline -->
+            <div class="bg-gray-50 p-8 rounded-xl shadow-lg mb-10">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-2">BID Timeline</h2>
+                    <p class="text-gray-600">{{ company.name }} - Top 5 High Priority BIDs</p>
+                </div>
+
+                <div class="space-y-10">
+                {% for item in go_projects %}
+                <!-- Timeline Tracker {{ loop.index }} -->
+                <div class="bg-white p-8 rounded-lg shadow-md overflow-hidden" data-bid-card="{{ item.g_id }}" data-stage-map='{{ (item.stage_progress_map|default({}))|tojson|safe }}'>
+                    <div class="flex justify-between items-center mb-12">
+                        <h3 class="text-xl font-semibold text-gray-900">{{ item.b_name }}</h3>
+                        <div class="flex items-center space-x-4">
+                            <span class="px-3 py-1 bg-blue-100 text-blue-600 text-sm font-semibold rounded-full">{{ item.company }}</span>
+                            <button class="timeline-summary-toggle flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800">
+                                <span>Dropdown for Summary</span>
+                                <i class="fas fa-chevron-down ml-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="relative w-full pr-4">
+                        <div class="absolute top-4 left-0 w-full h-1 bg-gray-200"></div>
+                        <div class="timeline-segments pointer-events-none">
+                            {% set seg_count = (item.stages|length - 1) if (item.stages|length - 1) > 0 else 0 %}
+                            {% if seg_count > 0 %}
+                                {% for i in range(seg_count) %}
+                                    {% set seg_stage = item.stages[i] %}
+                                    {% set map = item.stage_progress_map or {} %}
+                                    {% set sp = map.get(seg_stage, 0) %}
+                                    {% set leftpct = (100 * i / seg_count) %}
+                                    {% set widthpct = (sp / seg_count) %}
+                                    <div class="segment-progress absolute top-4 h-1 bg-green-500" data-stage="{{ seg_stage }}" style="left: {{ '%.2f'|format(leftpct) }}%; width: {{ '%.2f'|format(widthpct) }}%; z-index: 1;"></div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        <div class="timeline-dot hidden absolute top-4 left-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2" style="left: 0%; z-index: 20;">
+                            <div class="relative w-full h-full flex items-center justify-center">
+                                <div class="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg"></div>
+                            </div>
+                        </div>
+                        <div class="relative flex justify-between">
+                            {% for st in item.stages %}
+                            <div class="timeline-checkpoint text-center cursor-pointer" data-stage="{{ st }}" data-projectId="{{ item.g_id }}">
+                                <div class="checkpoint-circle w-8 h-8 bg-gray-300 border-4 border-white rounded-full mx-auto"></div>
+                                <p class="mt-2 font-semibold">{{ st.title() }}</p>
+                                <div class="mt-2 w-20 mx-auto">
+                                    {% set map = item.stage_progress_map or {} %}
+                                    {% set sp = map.get(st, 0) %}
+                                    <div class="w-full bg-gray-200 rounded-full h-1">
+                                        <div class="bg-green-500 h-1 rounded-full" style="width: {{ sp }}%"></div>
+                                    </div>
+                                    <p class="text-[10px] text-gray-500 text-center mt-1">{{ sp }}%</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="timeline-summary hidden mt-12 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                        <h4 class="text-lg font-semibold text-blue-600 mb-4">{{ item.b_name }} - Summary</h4>
+                        <div class="timeline-summary-content">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h5 class="font-semibold text-gray-700 mb-2">Key Points</h5>
+                                    <p class="text-sm text-gray-600 mb-1"><strong>Company:</strong> {{ item.company }}</p>
+                                    <p class="text-sm text-gray-600 mb-1"><strong>Due Date:</strong> {{ item.due_date }}</p>
+                                    <p class="text-sm text-gray-600 mb-1"><strong>Decision:</strong> {{ item.decision or '-' }}</p>
+                                    <p class="text-sm text-gray-600 mb-1"><strong>Project Status:</strong> {{ item.project_status or '-' }}</p>
+                                    <p class="text-sm text-gray-600 mb-1"><strong>Work Status:</strong> {{ item.work_status or '-' }}</p>
+                                    <p class="text-sm text-gray-600"><strong>Description:</strong> {{ item.summary or '-' }}</p>
+                                </div>
+                                <div>
+                                    <h5 class="font-semibold text-gray-700 mb-2">Work Progress</h5>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div class="bg-blue-500 h-3 rounded-full" style="width: {{ item.progress_pct is not none and item.progress_pct or 0 }}%"></div>
+                                    </div>
+                                    <p class="text-sm text-gray-600 mt-2">{{ item.progress_pct is not none and (item.progress_pct ~ '%') or 'N/A' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                </div>
+                </div>
+
+            <!-- Projects Timeline -->
+            <div class="bg-gray-50 p-8 rounded-xl shadow-lg mb-8">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Projects Timeline</h2>
+                    <p class="text-gray-600">{{ company.name }} - Latest Won Projects</p>
+                </div>
+                <div class="space-y-10">
+                {% for item in won_projects %}
+                <div class="bg-white p-8 rounded-lg shadow-md overflow-hidden" data-bid-card="{{ item.g_id }}" data-stage-map='{{ (item.stage_progress_map|default({}))|tojson|safe }}'>
+                    <div class="flex justify-between items-center mb-12">
+                        <h3 class="text-xl font-semibold text-gray-900">{{ item.b_name }}</h3>
+                        <div class="flex items-center space-x-4">
+                            <span class="px-3 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full">{{ item.company }}</span>
+                            <button class="timeline-summary-toggle flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800">
+                                <span>Dropdown for Summary</span>
+                                <i class="fas fa-chevron-down ml-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative w-full pr-4">
+                        <div class="absolute top-4 left-0 w-full h-1 bg-gray-200"></div>
+                        <div class="timeline-segments pointer-events-none">
+                            {% set seg_count = (item.stages|length - 1) if (item.stages|length - 1) > 0 else 0 %}
+                            {% if seg_count > 0 %}
+                                {% for i in range(seg_count) %}
+                                    {% set seg_stage = item.stages[i] %}
+                                    {% set map = item.stage_progress_map or {} %}
+                                    {% set sp = map.get(seg_stage, 0) %}
+                                    {% set leftpct = (100 * i / seg_count) %}
+                                    {% set widthpct = (sp / seg_count) %}
+                                    <div class="segment-progress absolute top-4 h-1 bg-green-500" data-stage="{{ seg_stage }}" style="left: {{ '%.2f'|format(leftpct) }}%; width: {{ '%.2f'|format(widthpct) }}%; z-index: 1;"></div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        <div class="timeline-dot hidden absolute top-4 left-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2" style="left: 0%; z-index: 20;">
+                            <div class="relative w-full h-full flex items-center justify-center">
+                                <div class="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg"></div>
+                            </div>
+                        </div>
+                        <div class="relative flex justify-between">
+                            {% for st in item.stages %}
+                            <div class="timeline-checkpoint text-center" data-stage="{{ st }}">
+                                <div class="checkpoint-circle w-8 h-8 bg-gray-300 border-4 border-white rounded-full mx-auto"></div>
+                                <p class="mt-2 font-semibold">{{ st.title() }}</p>
+                                <div class="mt-2 w-20 mx-auto">
+                                    {% set map = item.stage_progress_map or {} %}
+                                    {% set sp = map.get(st, 0) %}
+                                    <div class="w-full bg-gray-200 rounded-full h-1">
+                                        <div class="bg-green-500 h-1 rounded-full" style="width: {{ sp }}%"></div>
+                                    </div>
+                                    <p class="text-[10px] text-gray-500 text-center mt-1">{{ sp }}%</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            <!-- Projects Table -->
+            <div class="bg-white rounded-lg shadow-md">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">{{ company.name }} Projects</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasks</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for project in projects %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ project.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ project.due_date.strftime('%B %d, %Y') }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+                                            <div class="bg-blue-500 h-2 rounded-full" style="width: {{ project.progress }}%"></div>
+                                        </div>
+                                        <span class="text-sm text-gray-600">{{ project.progress }}%</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {% if project.status == 'active' %}bg-green-100 text-green-800
+                                        {% elif project.status == 'completed' %}bg-blue-100 text-blue-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ project.status|title }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ project.tasks|length }} tasks
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle all timeline trackers
+            const timelineTrackers = document.querySelectorAll('.bg-white.p-8.rounded-lg.shadow-md');
+            
+            timelineTrackers.forEach((tracker, trackerIndex) => {
+                const checkpoints = tracker.querySelectorAll('.timeline-checkpoint');
+                const timelineDot = tracker.querySelector('.timeline-dot');
+                const progressLine = tracker.querySelector('.timeline-progress');
+                const summaryToggle = tracker.querySelector('.timeline-summary-toggle');
+                const timelineSummary = tracker.querySelector('.timeline-summary');
+                const summaryTitle = timelineSummary.querySelector('h4');
+                const summaryContent = timelineSummary.querySelector('.timeline-summary-content');
+
+                // Hide legacy single progress visuals
+                if (progressLine) { progressLine.style.width = '0%'; progressLine.classList.add('hidden'); }
+                if (timelineDot) { timelineDot.classList.add('hidden'); }
+
+                // Timeline item click handlers
+                checkpoints.forEach((checkpoint, index) => {
+                    checkpoint.addEventListener('click', function() {
+                        const stage = this.dataset.stage;
+                        const projectId = this.dataset.projectId;
+                        
+                        // Update dot position based on checkpoint index
+                        const itemPosition = (index / (checkpoints.length - 1)) * 100;
+                        // No cumulative movement
+                        
+                        // Update active checkpoint visual
+                        checkpoints.forEach(cp => {
+                            cp.querySelector('.checkpoint-circle').classList.remove('bg-green-500');
+                            cp.querySelector('.checkpoint-circle').classList.add('bg-gray-300');
+                            const badge = cp.querySelector('span');
+                            badge.classList.remove('bg-blue-100', 'text-blue-600');
+                            badge.classList.add('bg-gray-200', 'text-gray-600');
+                        });
+                        
+                        // Make clicked checkpoint active
+                        this.querySelector('.checkpoint-circle').classList.remove('bg-gray-300');
+                        this.querySelector('.checkpoint-circle').classList.add('bg-green-500');
+                        const activeBadge = this.querySelector('span');
+                        activeBadge.classList.remove('bg-gray-200', 'text-gray-600');
+                        activeBadge.classList.add('bg-blue-100', 'text-blue-600');
+                        
+                        // Update summary
+                        updateSummary(stage, summaryTitle, summaryContent);
+                    });
+                });
+
+                // Summary toggle
+                summaryToggle.addEventListener('click', function() {
+                    timelineSummary.classList.toggle('hidden');
+                    const arrow = this.querySelector('i');
+                    arrow.classList.toggle('rotate-180');
+                });
+            });
+
+            function updateSummary(stage, summaryTitle, summaryContent) {
+                const summaryData = {
+                    analyzer: {
+                        title: "BID Analyzer Summary",
+                        content: [
+                            "Review of tender documents and project scope.",
+                            "Conduct initial viability and profitability assessment.",
+                            "Plan for necessary resource allocation."
+                        ]
+                    },
+                    business: {
+                        title: "Business Development Summary",
+                        content: [
+                            "Making of Proposals",
+                            "Creation of Helioscope Reports",
+                            "Track and nurture incoming leads",
+                            "Maintain regular client follow-ups and communication"
+                        ]
+                    },
+                    design: {
+                        title: "Design Team Summary",
+                        content: [
+                            "Preparation of detailed technical drawings",
+                            "Creation of Single-Line Diagrams (SLD)",
+                            "Finalization of the Bill of Quantities (BOQ)"
+                        ]
+                    },
+                    operations: {
+                        title: "Operations Summary",
+                        content: [
+                            "Conduct project kick-off meetings with stakeholders",
+                            "Manage procurement of materials and equipment",
+                            "Coordinate and manage vendors and subcontractors",
+                            "Develop and maintain the project execution schedule"
+                        ]
+                    },
+                    engineer: {
+                        title: "Site Engineer Summary",
+                        content: [
+                            "Provide on-site supervision of all activities",
+                            "Implement and monitor quality control checks",
+                            "Manage the installation process from start to finish",
+                            "Compile and submit daily progress reports"
+                        ]
+                    },
+                    handover: {
+                        title: "Handover / Closure Summary",
+                        content: [
+                            "Compile and deliver all final project documentation",
+                            "Provide client training and a final project walkthrough",
+                            "Finalize warranty and ongoing service agreements",
+                            "Complete the official project closure process"
+                        ]
+                    }
+                };
+
+                const data = summaryData[stage];
+                if (data) {
+                    summaryTitle.textContent = data.title;
+                    summaryContent.innerHTML = data.content.map(item => 
+                        `<p class="text-sm text-gray-600">${item}</p>`
+                    ).join('');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ team_display_name }} Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="flex h-screen">
+        {% include 'sidebar.html' %}
+
+        <main class="flex-1 p-8 overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">{{ team_display_name }} Dashboard</h2>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-600">Current Stage: <span class="font-semibold">{{ current_stage|replace('_',' ')|capitalize }}</span></div>
+                    <a href="/team/{{ team }}/employees" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-users mr-2"></i>Manage Employees
+                    </a>
+                </div>
+            </div>
+
+            <!-- Team Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                            <i class="fas fa-clipboard-list text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Total Bids</p>
+                            <p class="text-2xl font-bold text-gray-900">{{ total_bids }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-check-circle text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Completed</p>
+                            <p class="text-2xl font-bold text-gray-900">{{ completed_bids }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                            <i class="fas fa-clock text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">In Progress</p>
+                            <p class="text-2xl font-bold text-gray-900">{{ total_bids - completed_bids }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bids Table -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-lg font-semibold mb-4">Assigned Bids</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border border-gray-200 rounded-lg">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Bid Name</th>
+                                <th class="p-3">Company</th>
+                                <th class="p-3">Assignee</th>
+                                <th class="p-3">Due Date</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Progress</th>
+                                <th class="p-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bid in bids %}
+                            <tr class="border-b hover:bg-gray-50" data-bid-row="{{ bid.id }}" data-dyn-stages='{{ (bid.dyn_stages or []) | tojson | safe }}'>
+                                <td class="p-3">{{ bid.id }}</td>
+                                <td class="p-3 font-medium">{{ bid.name }}</td>
+                                <td class="p-3">{{ bid.company or 'N/A' }}</td>
+                                <td class="p-3">
+                                    <div class="text-sm">
+                                        <div class="font-medium">{{ bid.person_name or 'N/A' }}</div>
+                                        <div class="text-gray-500">{{ bid.person_email or 'N/A' }}</div>
+                                    </div>
+                                </td>
+                                <td class="p-3">{{ bid.due_date or 'N/A' }}</td>
+                                <td class="p-3">
+                                    <span class="px-2 py-1 text-xs rounded-full 
+                                        {% if bid.project_status == 'completed' %}bg-green-100 text-green-800
+                                        {% elif (bid.work_status == 'in_progress') or (not bid.work_status) %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ (bid.work_status or 'in_progress')|replace('_',' ')|title }}
+                                    </span>
+                                </td>
+                                <td class="p-3">
+                                    <div class="w-40">
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div id="progressBarRow_{{ bid.id }}" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                        </div>
+                                        <div class="text-xs text-gray-600 mt-1"><span id="progressPctRow_{{ bid.id }}">0%</span></div>
+                                    </div>
+                                </td>
+                                <td class="p-3">
+                                    <div class="flex space-x-2">
+                                        <!-- <select onchange="advance({{ bid.id }}, this.value)" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm border-0">
+                                            <option value="">Select Stage</option>
+                                            {% for s in ['analyzer','business','design','operations','engineer','handover'] %}
+                                                {% if s != bid.current_stage %}
+                                                <option value="{{ s }}">{{ s|replace('_',' ')|title }}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select> -->
+                                        <button class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm" 
+                                                onclick="showChecklistSection({{ bid.id }}, '{{ bid.name }}')">
+                                            <i class="fas fa-tasks mr-1"></i>Checklist
+                                        </button>
+                                        <button class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm" 
+                                                onclick="showTransferModal({{ bid.id }}, '{{ bid.name }}')">
+                                            <i class="fas fa-exchange-alt mr-1"></i>Transfer
+                                        </button>
+                                        <button class="px-3 py-1.5 border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white rounded text-sm"
+                                                onclick="showManageTimeline({{ bid.id }}, '{{ bid.current_stage }}')">
+                                            <i class="fas fa-edit mr-1"></i>Manage Timeline
+                                        </button>
+                                        <button class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm"
+                                                data-bid-id="{{ bid.id }}"
+                                                data-bid-name="{{ bid.name|e }}"
+                                                data-company="{{ (bid.company or 'N/A')|e }}"
+                                                data-due-date="{{ (bid.due_date or 'N/A')|e }}"
+                                                data-decision="{{ (bid.wl_result or 'GO')|e }}"
+                                                data-project-status="{{ (bid.project_status or 'ongoing')|e }}"
+                                                data-work-status="{{ (bid.work_status or 'Initiated by BID Analyzer')|e }}"
+                                                data-description="{{ (bid.summary or 'No description available')|e }}"
+                                                onclick="showBidSummaryFromEl(this)">
+                                            <i class="fas fa-eye mr-1"></i>Summary
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if bids|length == 0 %}
+                            <tr>
+                                <td colspan="8" class="p-6 text-center text-gray-500">
+                                    <i class="fas fa-inbox text-4xl text-gray-300 mb-2"></i>
+                                    <p>No bids assigned to {{ team_display_name }}</p>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Add Task Section (Hidden by default) -->
+            
+
+            <!-- Task Checklist Table (Hidden by default) -->
+            <div id="taskChecklistSection" class="bg-white rounded-lg shadow-md mb-8 mt-8 hidden">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Task Checklist for: <span id="checklistBidName" class="text-blue-600"></span></h3>
+                        <button onclick="hideChecklistSection()" class="text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="mt-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-gray-700">Progress</span>
+                            <span id="progressPercentage" class="text-sm font-medium text-gray-700">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">According to Task Completed</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="p-3 text-left">Task Name</th>
+                                <th class="p-3 text-left">Person Name</th>
+                                <th class="p-3 text-left">Email</th>
+                                <th class="p-3 text-left">Due Date</th>
+                                <th class="p-3 text-left">Designation</th>
+                                <th class="p-3 text-left">Status</th>
+                                <th class="p-3 text-left">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taskChecklistTableBody">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="addTaskSection" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold">Add Task for: <span id="selectedBidName" class="text-blue-600"></span></h3>
+                    <button onclick="hideChecklistSection()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form id="addTaskForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <input type="hidden" id="selectedBidId" name="g_id">
+                    <div>
+                        <label for="task_name" class="block text-sm font-medium text-gray-700 mb-2">Task Name</label>
+                        <input type="text" id="task_name" name="task_name" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="assigned_to" class="block text-sm font-medium text-gray-700 mb-2">Assign To</label>
+                        <select id="assigned_to" name="assigned_to" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Select Employee</option>
+                            <!-- Will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div>
+                        <label for="priority" class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                        <select id="priority" name="priority" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="due_date" class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                        <input type="datetime-local" id="due_date" name="due_date" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-4">
+                        <label for="description" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <textarea id="description" name="description" rows="3" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                  placeholder="Task description..."></textarea>
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-4">
+                        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                            <i class="fas fa-plus mr-2"></i>Add Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <!-- Live Activity Log -->
+            <!-- <div class="mt-8 bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-lg font-semibold mb-4">Live Activity Log</h3>
+                <div id="activity-log" class="space-y-2 max-h-64 overflow-y-auto">
+                    <p class="text-gray-500 text-sm">Activity updates will appear here in real-time...</p>
+                </div>
+            </div> -->
+        </main>
+    </div>
+
+    <!-- Bid Summary Modal -->
+    <div id="bidSummaryModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <h3 id="modalTitle" class="text-lg font-semibold text-gray-900"></h3>
+                    <button onclick="closeBidSummary()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <!-- Modal Content -->
+                <div class="grid grid-cols-1 gap-6">
+                    <!-- Key Points -->
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-3">Key Points</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-600">Company:</span>
+                                <span id="modalCompany" class="text-gray-900"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-600">Due Date:</span>
+                                <span id="modalDueDate" class="text-gray-900"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-600">Decision:</span>
+                                <span id="modalDecision" class="text-gray-900"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-600">Project Status:</span>
+                                <span id="modalProjectStatus" class="text-gray-900"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-600">Work Status:</span>
+                                <span id="modalWorkStatus" class="text-gray-900"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-gray-600">Description:</span>
+                                <span id="modalDescription" class="text-gray-900 text-right max-w-xs"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                    <button onclick="closeBidSummary()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO connection for real-time updates
+        const socket = io();
+        // Bid IDs present in the table for computing per-bid progress
+        const bidIds = [{% for bid in bids %}{{ bid.id }}{% if not loop.last %}, {% endif %}{% endfor %}];
+        
+        // Listen for master dashboard updates
+        socket.on('master_update', function(data) {
+            console.log('Received update:', data);
+            
+            // Add to activity log
+            addToActivityLog(data.log);
+            
+            // Refresh page to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        });
+
+        function addToActivityLog(logData) {
+            const logContainer = document.getElementById('activity-log');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'flex items-center space-x-3 p-3 bg-gray-50 rounded-lg';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.innerHTML = `
+                <div class="flex-shrink-0">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm text-gray-900">${logData.action}</p>
+                    <p class="text-xs text-gray-500">${logData.user_email} • ${timestamp}</p>
+                </div>
+            `;
+            
+            // Add to top of log
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
+            
+            // Keep only last 10 entries
+            while (logContainer.children.length > 10) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+        }
+
+        function advance(bidId, toStage) {
+            if (!toStage) {
+                return;
+            }
+            
+            fetch(`/api/update_stage/${bidId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stage: toStage })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message briefly then reload
+                    const notification = document.createElement('div');
+                    notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                    notification.textContent = data.success;
+                    document.body.appendChild(notification);
+                    
+                    // Reload page to move bid to next team's dashboard
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating stage');
+            });
+        }
+
+        function showBidSummary(bidId, bidName, company, dueDate, decision, projectStatus, workStatus, description) {
+            // Populate modal with bid data
+            document.getElementById('modalTitle').textContent = `${bidName} - Summary`;
+            document.getElementById('modalCompany').textContent = company;
+            document.getElementById('modalDueDate').textContent = dueDate;
+            document.getElementById('modalDecision').textContent = decision;
+            document.getElementById('modalProjectStatus').textContent = projectStatus;
+            document.getElementById('modalWorkStatus').textContent = workStatus;
+            document.getElementById('modalDescription').textContent = description;
+            
+            // Show modal
+            document.getElementById('bidSummaryModal').classList.remove('hidden');
+        }
+
+        // Read values from data-* attributes to avoid inline argument quoting issues
+        function showBidSummaryFromEl(btn) {
+            const bidId = parseInt(btn.getAttribute('data-bid-id'));
+            const bidName = btn.getAttribute('data-bid-name') || '';
+            const company = btn.getAttribute('data-company') || 'N/A';
+            const dueDate = btn.getAttribute('data-due-date') || 'N/A';
+            const decision = btn.getAttribute('data-decision') || 'GO';
+            const projectStatus = btn.getAttribute('data-project-status') || 'ongoing';
+            const workStatus = btn.getAttribute('data-work-status') || '';
+            const description = btn.getAttribute('data-description') || '';
+            showBidSummary(bidId, bidName, company, dueDate, decision, projectStatus, workStatus, description);
+        }
+
+        function closeBidSummary() {
+            document.getElementById('bidSummaryModal').classList.add('hidden');
+        }
+
+        function viewDetails(bidId) {
+            // For now, just show an alert. You can implement a modal or redirect to a details page
+            alert(`View details for bid ${bidId}`);
+        }
+
+        // Helper function to get next stage
+        function getNextStage(currentStage) {
+            const stageFlow = {
+                'analyzer': 'business',
+                'business': 'design',
+                'design': 'operations',
+                'operations': 'engineer',
+                'engineer': 'handover'
+            };
+            return stageFlow[currentStage] || null;
+        }
+
+        // Manage Timeline modal (supervisor-like), but only allow next stages
+        function showManageTimeline(bidId, currentStage) {
+            const order = ['analyzer','business','design','operations','engineer','handover'];
+            const idx = order.indexOf((currentStage || 'analyzer').toLowerCase());
+            // Prefer dynamic stages from dataset if available
+            let dynStages = [];
+            const row = document.querySelector(`[data-bid-row="${bidId}"]`);
+            if (row) {
+                try { dynStages = JSON.parse(row.getAttribute('data-dyn-stages') || '[]'); } catch(e) { dynStages = []; }
+            }
+            let allowed;
+            if (dynStages && dynStages.length) {
+                const pos = dynStages.indexOf((currentStage || 'analyzer').toLowerCase());
+                allowed = dynStages.slice(Math.max(pos + 1, 0));
+            } else {
+                allowed = order.slice(Math.max(idx + 1, 0));
+            }
+            const modalId = `manageTimelineModal_${bidId}`;
+            let modal = document.getElementById(modalId);
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50';
+                modal.innerHTML = `
+                    <div class="bg-white w-96 rounded-lg shadow-xl">
+                        <div class="px-5 py-4 border-b flex items-center justify-between">
+                            <h3 class="text-lg font-semibold">Manage Timeline</h3>
+                            <button class="text-gray-500 hover:text-gray-700" onclick="document.getElementById('${modalId}').remove()">✕</button>
+                        </div>
+                        <div class="p-5 space-y-5">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Add Stage</label>
+                                <div class="flex space-x-2">
+                                    <input id="addStage_${bidId}" type="text" placeholder="Enter new stage (e.g., procurement)" class="flex-1 border rounded px-3 py-2" />
+                                    <button class="px-3 py-2 bg-blue-600 text-white rounded" onclick="applyAddStage(${bidId})">Add</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Move to next stage</label>
+                                <select id="nextStage_${bidId}" class="w-full border rounded px-3 py-2">
+                                    ${allowed.map(s => `<option value="${s}">${s.replace('_',' ').replace(/\b\w/g, c=>c.toUpperCase())}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Delete Stage (after current only)</label>
+                                <div class="flex space-x-2">
+                                    <select id="delStage_${bidId}" class="flex-1 border rounded px-3 py-2">
+                                        ${allowed.map(s => `<option value="${s}">${s.replace('_',' ').replace(/\b\w/g, c=>c.toUpperCase())}</option>`).join('')}
+                                    </select>
+                                    <button class="px-3 py-2 bg-red-600 text-white rounded" onclick="applyDeleteStage(${bidId})">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-5 py-4 border-t flex justify-end space-x-2">
+                            <button class="px-4 py-2 bg-gray-200 rounded" onclick="document.getElementById('${modalId}').remove()">Cancel</button>
+                            <button class="px-4 py-2 bg-blue-600 text-white rounded" onclick="applyManageTimeline(${bidId})">Update Stage</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+            }
+        }
+
+        function applyManageTimeline(bidId) {
+            const select = document.getElementById(`nextStage_${bidId}`);
+            if (!select) return;
+            const selected = (select.value || '').toLowerCase();
+            fetch(`/api/update_stage/${bidId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ stage: selected })
+            })
+            .then(async r => { try { return { ok: r.ok, data: await r.json() }; } catch { return { ok: r.ok, data: {} }; } })
+            .then(({ ok, data }) => {
+                if (ok && (data.success || Object.keys(data).length === 0)) {
+                    const modal = document.getElementById(`manageTimelineModal_${bidId}`);
+                    if (modal) modal.remove();
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(() => alert('Error updating stage'));
+        }
+
+        function applyAddStage(bidId) {
+            const inp = document.getElementById(`addStage_${bidId}`);
+            const val = (inp && inp.value || '').trim();
+            if (!val) { alert('Please enter a stage name'); return; }
+            const payload = new URLSearchParams({ g_id: bidId, new_stage: val });
+            // Try team endpoint first
+            fetch('/team/stage/add', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'include', body: payload })
+            .then(async r => { if (r.ok) return { ok: true }; if (r.status === 404 || r.status === 403) return Promise.reject(r); return r.json(); })
+            .then(() => location.reload())
+            .catch(() => {
+                // Fallback to supervisor endpoint (may redirect HTML)
+                fetch('/supervisor/add-stage', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'include', body: payload })
+                .then(r => { if (r.ok) location.reload(); else alert('Error adding stage'); })
+                .catch(() => alert('Error adding stage'));
+            });
+        }
+
+        function applyDeleteStage(bidId) {
+            const sel = document.getElementById(`delStage_${bidId}`);
+            const val = (sel && sel.value) || '';
+            if (!val) { alert('Select a stage to delete'); return; }
+            if (!confirm(`Delete stage "${val}"? This cannot be undone.`)) return;
+            const payload = new URLSearchParams({ g_id: bidId, stage: val });
+            fetch('/team/stage/delete', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'include', body: payload })
+            .then(async r => { if (r.ok) return r.json(); if (r.status === 404 || r.status === 403) return Promise.reject(r); return r.json(); })
+            .then(data => { if (data.ok) location.reload(); else alert('Error: ' + (data.error || 'Unable to delete stage')); })
+            .catch(() => {
+                fetch('/supervisor/delete-stage', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, credentials: 'include', body: payload })
+                .then(r => { if (r.ok) location.reload(); else alert('Error deleting stage'); })
+                .catch(() => alert('Error deleting stage'));
+            });
+        }
+
+        function showTransferModal(bidId, bidName) {
+            document.getElementById('transferBidId').value = bidId;
+            document.getElementById('transferBidName').textContent = bidName;
+            document.getElementById('transferModal').classList.remove('hidden');
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').classList.add('hidden');
+        }
+
+        function submitTransfer() {
+            const form = document.getElementById('transferForm');
+            const formData = new FormData(form);
+            
+            fetch('/team/{{ team }}/transfer_project', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    alert('Error transferring project');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error transferring project');
+            });
+        }
+
+        let currentBidId = null;
+        let teamEmployees = [];
+
+        // Load team employees on page load and compute progress bars
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTeamEmployees();
+            loadAllBidProgress();
+        });
+
+        function loadAllBidProgress() {
+            bidIds.forEach(id => loadBidProgress(id));
+        }
+
+        function loadBidProgress(bidId) {
+            fetch(`/api/team/{{ team }}/bids/${bidId}/tasks`)
+                .then(response => response.json())
+                .then(data => {
+                    const tasks = data.tasks || [];
+                    let pct = 0;
+                    if (tasks.length > 0) {
+                        const completed = tasks.filter(t => t.status === 'completed').length;
+                        pct = Math.round((completed / tasks.length) * 100);
+                    }
+                    const bar = document.getElementById(`progressBarRow_${bidId}`);
+                    const txt = document.getElementById(`progressPctRow_${bidId}`);
+                    if (bar) bar.style.width = `${pct}%`;
+                    if (txt) txt.textContent = `${pct}%`;
+                })
+                .catch(err => {
+                    console.error('Error loading bid progress', bidId, err);
+                });
+        }
+
+        function loadTeamEmployees() {
+            fetch(`/api/team/{{ team }}/employees`)
+            .then(response => response.json())
+            .then(data => {
+                teamEmployees = data.employees || [];
+                populateEmployeeSelect();
+            })
+            .catch(error => {
+                console.error('Error loading employees:', error);
+            });
+        }
+
+        function populateEmployeeSelect() {
+            const select = document.getElementById('assigned_to');
+            select.innerHTML = '<option value="">Select Employee</option>';
+            teamEmployees.forEach(employee => {
+                const option = document.createElement('option');
+                option.value = employee.id;
+                option.textContent = employee.name;
+                select.appendChild(option);
+            });
+        }
+
+        function showChecklistSection(bidId, bidName) {
+            currentBidId = bidId;
+            document.getElementById('selectedBidId').value = bidId;
+            document.getElementById('selectedBidName').textContent = bidName;
+            document.getElementById('checklistBidName').textContent = bidName;
+            
+            // Show both sections
+            document.getElementById('addTaskSection').classList.remove('hidden');
+            document.getElementById('taskChecklistSection').classList.remove('hidden');
+            
+            // Load existing tasks for this bid
+            loadBidTasks(bidId);
+        }
+
+        function hideChecklistSection() {
+            document.getElementById('addTaskSection').classList.add('hidden');
+            document.getElementById('taskChecklistSection').classList.add('hidden');
+            currentBidId = null;
+        }
+
+        function loadBidTasks(bidId) {
+            fetch(`/api/team/{{ team }}/bids/${bidId}/tasks`)
+            .then(response => response.json())
+            .then(data => {
+                populateTaskTable(data.tasks || []);
+                updateProgressBar(data.tasks || []);
+            })
+            .catch(error => {
+                console.error('Error loading tasks:', error);
+            });
+        }
+
+        function populateTaskTable(tasks) {
+            const tbody = document.getElementById('taskChecklistTableBody');
+            tbody.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-6 text-center text-gray-500">
+                            <i class="fas fa-tasks text-4xl text-gray-300 mb-2"></i>
+                            <p>No tasks created yet for this bid</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tasks.forEach(task => {
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="p-3">
+                        <div>
+                            <div class="font-medium">${task.task_name}</div>
+                            ${task.description ? `<div class="text-sm text-gray-600">${task.description}</div>` : ''}
+                        </div>
+                    </td>
+                    <td class="p-3">${task.assigned_employee_name || 'Unassigned'}</td>
+                    <td class="p-3">${task.employee_email || 'N/A'}</td>
+                    <td class="p-3">${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'N/A'}</td>
+                    <td class="p-3">${task.department || 'N/A'}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 text-xs rounded-full ${getStatusClass(task.status)}">
+                            ${task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                        </span>
+                    </td>
+                    <td class="p-3">
+                        <div class="flex space-x-2">
+                            <button class="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+                                    onclick="openTaskEdit(${task.id}, '${task.task_name}', '${(task.description||'').replace(/'/g, "\'")}', '${task.status}', '${task.due_date || ''}', '${task.priority || 'medium'}')">
+                                Update
+                            </button>
+                            <button class="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded"
+                                    onclick="deleteTask(${task.id})">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'completed': return 'bg-green-100 text-green-800';
+                case 'in_progress': return 'bg-blue-100 text-blue-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function updateProgressBar(tasks) {
+            if (tasks.length === 0) {
+                document.getElementById('progressBar').style.width = '0%';
+                document.getElementById('progressPercentage').textContent = '0%';
+                return;
+            }
+
+            const completedTasks = tasks.filter(task => task.status === 'completed').length;
+            const progressPercentage = Math.round((completedTasks / tasks.length) * 100);
+            
+            document.getElementById('progressBar').style.width = `${progressPercentage}%`;
+            document.getElementById('progressPercentage').textContent = `${progressPercentage}%`;
+        }
+
+        function updateTaskStatus(taskId, newStatus) {
+            const formData = new FormData();
+            formData.append('status', newStatus);
+            
+            fetch(`/task/${taskId}/update_status`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload tasks for current bid
+                    if (currentBidId) {
+                        loadBidTasks(currentBidId);
+                    }
+                } else {
+                    alert('Error updating task status: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating task status');
+            });
+        }
+
+        function deleteTask(taskId) {
+            if (!confirm('Delete this task?')) return;
+            fetch(`/task/${taskId}/delete`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        if (currentBidId) loadBidTasks(currentBidId);
+                    } else {
+                        alert('Error deleting task: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Error deleting task');
+                });
+        }
+
+        function openTaskEdit(taskId, taskName, description, status, dueDate, priority) {
+            const newName = prompt('Task name:', taskName);
+            if (newName === null) return;
+            const newDesc = prompt('Description:', description || '');
+            if (newDesc === null) return;
+            const newStatus = prompt("Status (pending|in_progress|completed):", status);
+            if (newStatus === null) return;
+            const newDue = prompt('Due date (YYYY-MM-DD HH:MM) or empty:', dueDate || '');
+            if (newDue === null) return;
+            const newPriority = prompt('Priority (low|medium|high|urgent):', priority || 'medium');
+            if (newPriority === null) return;
+
+            const form = new FormData();
+            form.append('task_name', newName);
+            form.append('description', newDesc);
+            form.append('status', newStatus);
+            if (newDue) form.append('due_date', newDue);
+            form.append('priority', newPriority);
+
+            fetch(`/task/${taskId}/update`, { method: 'POST', body: form })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        if (currentBidId) loadBidTasks(currentBidId);
+                    } else {
+                        alert('Error updating task: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Error updating task');
+                });
+        }
+
+        function showTaskDetails(taskId, taskName, description, status) {
+            alert(`Task: ${taskName}\nDescription: ${description}\nStatus: ${status}`);
+        }
+
+        // Handle add task form submission
+        document.getElementById('addTaskForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch(`/team/{{ team }}/bids/${currentBidId}/checklist/create`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Clear form
+                    this.reset();
+                    // Reload tasks
+                    loadBidTasks(currentBidId);
+                } else {
+                    alert('Error creating task');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error creating task');
+            });
+        });
+    </script>
+
+    <!-- Transfer Project Modal -->
+    <div id="transferModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Transfer Project</h3>
+                <p class="text-sm text-gray-600 mb-4">Transfer project: <span id="transferBidName" class="font-semibold"></span></p>
+                
+                <form id="transferForm" onsubmit="event.preventDefault(); submitTransfer();">
+                    <input type="hidden" id="transferBidId" name="g_id">
+                    
+                    <div class="mb-4">
+                        <label for="to_team" class="block text-sm font-medium text-gray-700 mb-2">Transfer to Team:</label>
+                        <select name="to_team" id="to_team" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                            <option value="">Select Team</option>
+                            <option value="business">Business Development</option>
+                            <option value="design">Design Team</option>
+                            <option value="operations">Operations Team</option>
+                            <option value="engineer">Site Engineer</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="transfer_reason" class="block text-sm font-medium text-gray-700 mb-2">Transfer Reason:</label>
+                        <textarea name="transfer_reason" id="transfer_reason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Reason for transfer..."></textarea>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeTransferModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                            Transfer Project
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
